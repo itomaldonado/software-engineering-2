@@ -58,35 +58,52 @@ def read_data(filename):
     '--beta', '-b', default=11.100, help='Precision, (1/variance).', type=float, show_default=True)
 @click.option(
     '--mth', '-m', default=9, help='M. The Mth order polynomial.', type=int, show_default=True)
+@click.option(
+    '--N', '-n', default=None,
+    help='N. The number of input data to use from the data.csv. If empty, use the full data set',
+    type=int)
 @click.argument('data', type=click.Path(exists=True))
-@click.argument('predict', type=float)
-def predict(alpha, beta, mth, data, predict):
-    print(f'Parameters - α:{alpha}, β:{beta}, Data: {data}, Mth:{mth}, prediction:{predict}')
+def predict(alpha, beta, mth, n, data):
+    print(f'Parameters - α:{alpha}, β:{beta}, Data: {data}, Mth:{mth}')
     x, t = read_data(data)
-    N = len(t)
+    N = n if n else len(t)
+
+    # prediction is the next X
+    predict = N + 1
     polynomial = mth + 1
+    print(f'Infered Parameters - N:{N}, Polynomial:{polynomial}, x: {x}, t:{t}')
 
     # Calculate sums (Φ(x).t) and (φ(x).φ(x)^T)
-    phi_sum = numpy.zeros((polynomial, polynomial), float)
+    phi_sum = numpy.zeros((polynomial, 1), float)
     phi_sum_t = numpy.zeros((polynomial, 1), float)
     for i in range(N):
         phi = get_phi(x[i], polynomial)
-        phi_sum = phi_sum + numpy.multiply(phi, phi.T)
-        phi_sum_t = phi_sum_t + (t[i] * phi)
+        phi_sum = numpy.add(phi_sum, phi)
+        phi_sum_t = numpy.add(phi_sum_t, (phi * t[i]))
+
+    print(f'Phi Sum: {phi_sum}')
+    print(f'Phi Sum T: {phi_sum_t}')
 
     # Get phi for 'prediction'
     phi = get_phi(predict, polynomial)
+    print(f'Phi: {phi}')
 
     # Calculate the variance / standard deviation
-    S = numpy.linalg.inv((alpha * numpy.identity(polynomial)) + (beta * phi_sum))
+    S = alpha * numpy.identity(polynomial) + beta * numpy.dot(phi_sum, phi.T)
+    S = numpy.linalg.inv(S)
     variance = (float(1.0 / beta) + numpy.dot(numpy.dot(phi.T, S), phi))[0][0]
 
     # Calculate the mean
-    mean = ((beta * phi.T) * S * phi_sum_t)[0][0]
+    mean = (beta * numpy.dot(phi.T, numpy.dot(S, phi_sum_t)))[0][0]
 
     # Print prediction values
-    print(f'Variance: {variance}')
-    print(f'Mean: {mean}')
+    print(f'Data mean: {numpy.mean(t[:N])}')
+    print(f'Mean: {round(mean, 3)}')
+    print(f'Variance: {round(variance, 3)}')
+    print(
+        f'The predicted range: [${round(mean - 3 * variance, 2)}'
+        f' - ${round(mean + 3 * variance, 2)}]'
+    )
 
 
 if __name__ == '__main__':
