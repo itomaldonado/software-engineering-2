@@ -22,6 +22,7 @@ where I is the unit matrix, and the vector φ(x) is defined as:
 
 import click
 import csv
+import logging
 import math
 import numpy
 
@@ -51,27 +52,37 @@ def read_data(filename):
     return x, t
 
 
+def _setup_logging(debug):
+    fmt = '%(message)s'
+    loglevel = logging.INFO
+    if debug:
+        loglevel = logging.DEBUG
+    logging.basicConfig(format=fmt, level=loglevel)
+
+
 @click.command()
+@click.option('--debug', is_flag=True, help="Show debug data")
 @click.option(
     '--alpha', '-a', default=0.005, help='Alpha.', type=float, show_default=True)
 @click.option(
     '--beta', '-b', default=11.100, help='Precision, (1/variance).', type=float, show_default=True)
 @click.option(
-    '--mth', '-m', default=9, help='M. The Mth order polynomial.', type=int, show_default=True)
+    '--mth', '-m', default=6, help='M. The Mth order polynomial.', type=int, show_default=True)
 @click.option(
     '--N', '-n', default=None,
     help='N. The number of input data to use from the data.csv. If empty, use the full data set',
     type=int)
 @click.argument('data', type=click.Path(exists=True))
-def predict(alpha, beta, mth, n, data):
-    print(f'Parameters - α:{alpha}, β:{beta}, Data: {data}, Mth:{mth}')
+def predict(debug, alpha, beta, mth, n, data):
+    _setup_logging(debug)
+    logging.debug(f'Parameters - α:{alpha}, β:{beta}, Data: {data}, Mth:{mth}')
     x, t = read_data(data)
     N = n if n else len(t)
 
     # prediction is the next X
     predict = N + 1
     polynomial = mth + 1
-    print(f'Infered Parameters - N:{N}, Polynomial:{polynomial}, x: {x}, t:{t}')
+    logging.debug(f'Infered Parameters - N:{N}, Polynomial:{polynomial}, x: {x}, t:{t}')
 
     # Calculate sums (Φ(x).t) and (φ(x).φ(x)^T)
     phi_sum = numpy.zeros((polynomial, 1), float)
@@ -81,12 +92,12 @@ def predict(alpha, beta, mth, n, data):
         phi_sum = numpy.add(phi_sum, phi)
         phi_sum_t = numpy.add(phi_sum_t, (phi * t[i]))
 
-    print(f'Phi Sum: {phi_sum}')
-    print(f'Phi Sum T: {phi_sum_t}')
+    logging.debug(f'Phi Sum: {phi_sum}')
+    logging.debug(f'Phi Sum T: {phi_sum_t}')
 
     # Get phi for 'prediction'
     phi = get_phi(predict, polynomial)
-    print(f'Phi: {phi}')
+    logging.debug(f'Phi: {phi}')
 
     # Calculate the variance / standard deviation
     S = alpha * numpy.identity(polynomial) + beta * numpy.dot(phi_sum, phi.T)
@@ -97,10 +108,10 @@ def predict(alpha, beta, mth, n, data):
     mean = (beta * numpy.dot(phi.T, numpy.dot(S, phi_sum_t)))[0][0]
 
     # Print prediction values
-    print(f'Data mean: {numpy.mean(t[:N])}')
-    print(f'Mean: {round(mean, 3)}')
-    print(f'Variance: {round(variance, 3)}')
-    print(
+    logging.debug(f'Data mean: {numpy.mean(t[:N])}')
+    logging.info(f'Mean: {round(mean, 3)}')
+    logging.info(f'Variance: {round(variance, 3)}')
+    logging.info(
         f'The predicted range: [${round(mean - 3 * variance, 2)}'
         f' - ${round(mean + 3 * variance, 2)}]'
     )
